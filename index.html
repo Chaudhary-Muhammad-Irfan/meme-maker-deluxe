@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Meme Maker Deluxe</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <style>
+    body {
+      background: linear-gradient(135deg, #ffafcc, #ffc8dd);
+      font-family: 'Poppins', sans-serif;
+      overflow-x: hidden;
+    }
+    .fade-up {
+      animation: fadeUp 1s ease forwards;
+      opacity: 0;
+      transform: translateY(30px);
+    }
+    @keyframes fadeUp {
+      to {
+        opacity: 1;
+        transform: translateY(0);
+      }
+    }
+    canvas {
+      border-radius: 10px;
+      cursor: grab;
+      background: white;
+      display: block;
+      margin: 0 auto;
+    }
+    /* Draggable text boxes styling */
+    .draggable-text {
+      position: absolute;
+      padding: 4px 8px;
+      background: #fbcfe8; /* pink-200 */
+      border: 2px solid #db2777; /* pink-700 */
+      border-radius: 6px;
+      font-weight: 700;
+      color: #db2777;
+      cursor: move;
+      user-select: none;
+      white-space: nowrap;
+      font-family: Impact, Arial, sans-serif;
+      font-size: 28px;
+      line-height: 1.1;
+      text-shadow:
+        -1px -1px 0 #000,
+        1px -1px 0 #000,
+        -1px 1px 0 #000,
+        1px 1px 0 #000;
+    }
+    /* The input for typing meme text */
+    #memeTextInput {
+      width: 100%;
+      max-width: 400px;
+      padding: 8px 12px;
+      margin-top: 8px;
+      border: 2px solid #db2777;
+      border-radius: 8px;
+      font-size: 20px;
+      font-weight: 700;
+      color: #db2777;
+      background: #fce7f3;
+      font-family: Impact, Arial, sans-serif;
+      box-sizing: border-box;
+    }
+  </style>
+</head>
+<body class="relative min-h-screen flex flex-col items-center justify-center p-4">
+
+  <!-- Fireworks Background -->
+  <canvas id="fireworks" class="absolute inset-0 z-0"></canvas>
+
+  <h1 class="text-4xl md:text-6xl font-extrabold text-pink-700 drop-shadow-lg mb-10 fade-up">🎨 Meme Maker Deluxe</h1>
+
+  <!-- Center the single section -->
+  <div class="bg-white p-6 rounded-2xl shadow-xl fade-up flex flex-col items-center w-full max-w-sm z-10">
+    <h2 class="text-2xl font-bold text-pink-600 mb-4">🖼 Upload & Add Draggable Text</h2>
+    <input type="file" id="uploadImage" accept="image/*" class="mb-4 w-full max-w-sm" />
+
+    <!-- Fixed size container for canvas -->
+    <div id="canvasContainer" style="width: 400px; height: 400px; position: relative; border: 2px solid #eab308; border-radius: 10px; overflow: hidden; background: white;">
+      <canvas id="memeCanvas" width="400" height="400" class="cursor-grab"></canvas>
+      <!-- Draggable texts will be appended here -->
+    </div>
+
+    <button id="writeTextBtn" class="mt-4 bg-pink-500 text-white px-4 py-2 rounded hover:bg-pink-600 w-full max-w-sm">
+      Write Meme Text
+    </button>
+
+    <!-- Hidden input for typing meme text, shown on clicking the button -->
+    <input
+      id="memeTextInput"
+      type="text"
+      placeholder="Type your meme text and press Enter"
+      style="display:none;"
+      spellcheck="false"
+      autocomplete="off"
+    />
+
+    <button id="downloadMeme" class="mt-4 bg-pink-500 text-white px-4 py-2 rounded hover:bg-pink-600 w-full max-w-sm">
+      Download Meme
+    </button>
+  </div>
+
+  <script>
+    // Fireworks Animation (same as before)
+    const fwCanvas = document.getElementById('fireworks');
+    const ctxFW = fwCanvas.getContext('2d');
+    fwCanvas.width = window.innerWidth;
+    fwCanvas.height = window.innerHeight;
+    const fireworks = [];
+    function createFirework() {
+      fireworks.push({
+        x: Math.random() * fwCanvas.width,
+        y: Math.random() * fwCanvas.height / 2,
+        size: Math.random() * 4 + 2,
+        color: `hsl(${Math.random() * 360}, 100%, 60%)`,
+        life: 0
+      });
+    }
+    function drawFireworks() {
+      ctxFW.clearRect(0, 0, fwCanvas.width, fwCanvas.height);
+      fireworks.forEach((fw, i) => {
+        ctxFW.beginPath();
+        ctxFW.arc(fw.x, fw.y, fw.size, 0, Math.PI * 2);
+        ctxFW.fillStyle = fw.color;
+        ctxFW.fill();
+        fw.size += 0.5;
+        fw.life += 1;
+        if (fw.life > 30) fireworks.splice(i, 1);
+      });
+    }
+    setInterval(createFirework, 500);
+    function animateFW() {
+      drawFireworks();
+      requestAnimationFrame(animateFW);
+    }
+    animateFW();
+    window.addEventListener('resize', () => {
+      fwCanvas.width = window.innerWidth;
+      fwCanvas.height = window.innerHeight;
+    });
+
+    // Meme Canvas Setup
+    const canvas = document.getElementById('memeCanvas');
+    const ctx = canvas.getContext('2d');
+    let image = new Image();
+
+    const canvasContainer = document.getElementById('canvasContainer');
+    const writeTextBtn = document.getElementById('writeTextBtn');
+    const memeTextInput = document.getElementById('memeTextInput');
+
+    // Store all draggable texts with position and content
+    const draggableTexts = [];
+
+    // Load image on upload
+    document.getElementById('uploadImage').addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        image.src = reader.result;
+      };
+      reader.readAsDataURL(file);
+    });
+
+    image.onload = () => {
+      drawCanvas();
+    };
+
+    // Draw the canvas: image + all draggable texts
+    function drawCanvas() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      if(image.src){
+        ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+      } else {
+        ctx.fillStyle = '#fff';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+      }
+
+      // Draw all texts on canvas, matching position of their divs
+      draggableTexts.forEach(({el, x, y, text}) => {
+        if (!text) return;
+        ctx.font = 'bold 30px Impact, Arial, sans-serif';
+        ctx.fillStyle = '#db2777'; // pinkish red
+        ctx.strokeStyle = 'black';
+        ctx.lineWidth = 3;
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'top';
+
+        // Calculate text position relative to canvas
+        const containerRect = canvasContainer.getBoundingClientRect();
+        const elRect = el.getBoundingClientRect();
+
+        const posX = elRect.left - containerRect.left + 5;
+        const posY = elRect.top - containerRect.top + 5;
+
+        ctx.fillText(text, posX, posY);
+        ctx.strokeText(text, posX, posY);
+      });
+    }
+
+    // Add a new draggable text div at default position with given text
+    function addDraggableText(text) {
+      const div = document.createElement('div');
+      div.className = 'draggable-text';
+      div.textContent = text;
+      // Start in center-ish
+      div.style.left = '100px';
+      div.style.top = '180px';
+      canvasContainer.appendChild(div);
+
+      const newTextObj = {
+        el: div,
+        x: 100,
+        y: 180,
+        text: text,
+      };
+      draggableTexts.push(newTextObj);
+
+      // Dragging variables
+      let isDragging = false;
+      let offsetX = 0;
+      let offsetY = 0;
+
+      div.addEventListener('mousedown', (e) => {
+        isDragging = true;
+        const rect = div.getBoundingClientRect();
+        offsetX = e.clientX - rect.left;
+        offsetY = e.clientY - rect.top;
+        div.style.cursor = 'grabbing';
+        e.preventDefault();
+      });
+
+      window.addEventListener('mouseup', () => {
+        if (isDragging) {
+          isDragging = false;
+          div.style.cursor = 'move';
+          drawCanvas();
+        }
+      });
+
+      window.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+        const containerRect = canvasContainer.getBoundingClientRect();
+
+        let left = e.clientX - containerRect.left - offsetX;
+        let top = e.clientY - containerRect.top - offsetY;
+
+        // Clamp inside container
+        left = Math.min(Math.max(0, left), containerRect.width - div.offsetWidth);
+        top = Math.min(Math.max(0, top), containerRect.height - div.offsetHeight);
+
+        div.style.left = left + 'px';
+        div.style.top = top + 'px';
+
+        // Update position in draggableTexts array
+        newTextObj.x = left;
+        newTextObj.y = top;
+
+        drawCanvas();
+      });
+    }
+
+    // Show input on clicking "Write Meme Text" button
+    writeTextBtn.addEventListener('click', () => {
+      memeTextInput.style.display = 'block';
+      memeTextInput.focus();
+    });
+
+    // When user presses Enter in the input, add draggable text and clear input
+    memeTextInput.addEventListener('keydown', (e) => {
+      if(e.key === 'Enter'){
+        e.preventDefault();
+        const text = memeTextInput.value.trim();
+        if(text){
+          addDraggableText(text);
+          memeTextInput.value = '';
+          memeTextInput.style.display = 'none';
+          drawCanvas();
+        }
+      } else if (e.key === 'Escape') {
+        memeTextInput.value = '';
+        memeTextInput.style.display = 'none';
+      }
+    });
+
+    // Redraw canvas on window resize just in case
+    window.addEventListener('resize', drawCanvas);
+
+    // Download meme button logic
+    document.getElementById('downloadMeme').addEventListener('click', () => {
+      // Draw canvas fresh
+      drawCanvas();
+
+      // Create a temp canvas to draw image + all texts
+      const tempCanvas = document.createElement('canvas');
+      tempCanvas.width = canvas.width;
+      tempCanvas.height = canvas.height;
+      const tempCtx = tempCanvas.getContext('2d');
+
+      if(image.src){
+        tempCtx.drawImage(image, 0, 0, tempCanvas.width, tempCanvas.height);
+      } else {
+        tempCtx.fillStyle = '#fff';
+        tempCtx.fillRect(0, 0, tempCanvas.width, tempCanvas.height);
+      }
+
+      draggableTexts.forEach(({el, x, y, text}) => {
+        if (!text) return;
+        tempCtx.font = 'bold 30px Impact, Arial, sans-serif';
+        tempCtx.fillStyle = '#db2777';
+        tempCtx.strokeStyle = 'black';
+        tempCtx.lineWidth = 3;
+        tempCtx.textAlign = 'left';
+        tempCtx.textBaseline = 'top';
+
+        tempCtx.fillText(text, x + 5, y + 5);
+        tempCtx.strokeText(text, x + 5, y + 5);
+      });
+
+      // Trigger download
+      const link = document.createElement('a');
+      link.download = 'meme.png';
+      link.href = tempCanvas.toDataURL();
+      link.click();
+    });
+  </script>
+</body>
+</html>
